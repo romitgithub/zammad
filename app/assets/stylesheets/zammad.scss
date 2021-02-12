@@ -906,6 +906,16 @@ pre code.hljs {
   }
 }
 
+.dropdown-menu-right {
+  @include rtl(right, auto);
+  @include rtl(left, 0);
+}
+
+.dropdown-menu-left {
+  @include rtl(left, auto);
+  @include rtl(right, 0);
+}
+
 .status-fields {
   display: flex;
   max-width: 100%;
@@ -2067,6 +2077,17 @@ input.time.time--12 {
   height: auto;
   min-height: 82px;
   background: none;
+}
+
+.richtext.form-control [contenteditable="false"] {
+    cursor: not-allowed;
+    opacity: 1;
+    background: hsl(210,17%,93%);
+    border-color: hsl(210,10%,85%);
+    &:focus,
+    &.focus {
+      border-color: hsl(200,71%,59%);
+    }
 }
 
 .richtext.form-control .attachments.attachments--list:not(:empty) {
@@ -5666,6 +5687,10 @@ footer {
     position: relative;
     z-index: 1;
     padding: 0 55px;
+
+    &.article-actions {
+      justify-content: space-around;
+    }
   }
 
   .article-content-meta {
@@ -5947,11 +5972,11 @@ footer {
   }
 
   .ticket-article-item .task-subline {
-    margin-top: 12px;
+    margin-top: 7px;
   }
 
   .article-action {
-    padding-top: 5px;
+    padding: 5px 16px 5px 16px;
     margin-top: 5px;
     color: hsl(198,4%,56%);
     font-size: 12px;
@@ -8877,8 +8902,12 @@ label + .wizard-buttonList {
 
 .horizontal-filter-body {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   flex: 1;
+
+  .controls:not(.js-value) {
+    flex-shrink: 0;
+  }
 }
 
 .horizontal-filter-group {
@@ -11011,7 +11040,8 @@ output {
     width: 200px;
     height: 150px;
     margin: 14px;
-    margin-right: 0;
+    @include ltr(margin-right, 0);
+    @include rtl(margin-left, 0);
     $i: 0;
     $rainbow: ();
     @while $i <= 360 {

@@ -368,7 +368,7 @@ RSpec.describe 'Ticket zoom', type: :system do
 
         include_examples 'deleting ticket article',
                          item: 'article_note_communication_self',
-                         now: false, later: false, much_later: false
+                         now: true, later: true, much_later: false
 
         include_examples 'deleting ticket article',
                          item: 'article_note_communication_other',
@@ -396,7 +396,7 @@ RSpec.describe 'Ticket zoom', type: :system do
 
         include_examples 'deleting ticket article',
                          item: 'article_note_communication_self',
-                         now: false, later: false, much_later: false
+                         now: true, later: true, much_later: false
 
         include_examples 'deleting ticket article',
                          item: 'article_note_communication_other',
@@ -1090,6 +1090,317 @@ RSpec.describe 'Ticket zoom', type: :system do
         ticket_note.update!(internal: false)
 
         expect(page).to have_selector(:active_ticket_article, ticket_note)
+      end
+    end
+  end
+
+  # https://github.com/zammad/zammad/issues/3260
+  describe 'next in overview macro changes URL', authenticated_as: :authenticate do
+    let(:next_ticket) { create(:ticket, title: 'next Ticket', group: Group.first) }
+    let(:macro)       { create(:macro, name: 'next macro', ux_flow_next_up: 'next_from_overview') }
+
+    def authenticate
+      next_ticket && macro
+
+      true
+    end
+
+    it 'to next Ticket ID' do
+      visit 'ticket/view/all_unassigned'
+      click_on 'Welcome to Zammad!'
+      click '.js-openDropdownMacro'
+      find(:macro, macro.id).click
+      wait(5, interval: 1).until_constant { current_url }
+
+      expect(current_url).to include("ticket/zoom/#{next_ticket.id}")
+    end
+  end
+
+  # https://github.com/zammad/zammad/issues/3279
+  describe 'previous/next clickability when at last or first ticket' do
+    let(:ticket_a)          { create(:ticket, title: 'ticket a', group: Group.first) }
+    let(:ticket_b)          { create(:ticket, title: 'ticket b', group: Group.first) }
+
+    before do
+      ticket_a && ticket_b
+
+      visit 'ticket/view/all_unassigned'
+    end
+
+    it 'previous is not clickable for the first item' do
+      open_nth_item(0)
+
+      expect { click '.pagination .previous' }.not_to change { current_url }
+    end
+
+    it 'next is clickable for the first item' do
+      open_nth_item(0)
+
+      expect { click '.pagination .next' }.to change { current_url }
+    end
+
+    it 'previous is clickable for the middle item' do
+      open_nth_item(1)
+
+      expect { click '.pagination .previous' }.to change { current_url }
+    end
+
+    it 'next is clickable for the middle item' do
+      open_nth_item(1)
+
+      expect { click '.pagination .next' }.to change { current_url }
+    end
+
+    it 'previous is clickable for the last item' do
+      open_nth_item(2)
+
+      expect { click '.pagination .previous' }.to change { current_url }
+    end
+
+    it 'next is not clickable for the last item' do
+      open_nth_item(2)
+
+      expect { click '.pagination .next' }.not_to change { current_url }
+    end
+
+    def open_nth_item(nth)
+      within :active_content do
+        find_all('.table tr.item .user-popover')[nth].click
+      end
+    end
+  end
+
+  # https://github.com/zammad/zammad/issues/3267
+  describe 'previous/next buttons are added when open ticket is opened from overview' do
+    let(:ticket_a)          { create(:ticket, title: 'ticket a', group: Group.first) }
+    let(:ticket_b)          { create(:ticket, title: 'ticket b', group: Group.first) }
+
+    # prepare an opened ticket and go to overview
+    before do
+      ticket_a && ticket_b
+
+      visit "ticket/zoom/#{ticket_a.id}"
+
+      await_empty_ajax_queue
+
+      visit 'ticket/view/all_unassigned'
+    end
+
+    it 'adds previous/next buttons to existing ticket' do
+      within :active_content do
+        click_on ticket_a.title
+
+        expect(page).to have_css('.pagination-counter')
+      end
+    end
+
+    it 'keeps previous/next buttons when navigating to overview ticket from elsewhere' do
+      within :active_content do
+        click_on ticket_a.title
+        visit 'dashboard'
+        visit "ticket/zoom/#{ticket_a.id}"
+
+        expect(page).to have_css('.pagination-counter')
+      end
+    end
+  end
+
+  # https://github.com/zammad/zammad/issues/2942
+  describe 'attachemts are lost in specific conditions' do
+    let(:ticket) { create(:ticket, group: Group.first) }
+
+    it 'attachment is retained when forwarding a fresh article' do
+      ensure_websocket do
+        visit "ticket/zoom/#{ticket.id}"
+      end
+
+      # add an article, forcing reset of form_id
+      find('.articleNewEdit-body').send_keys('Note here')
+      click '.js-submit'
+
+      # create a on-the-fly article with attachment that will get pushed to open browser
+      article1 = create(:ticket_article, ticket: ticket)
+
+      Store.add(
+        object:        'Ticket::Article',
+        o_id:          article1.id,
+        data:          'some content',
+        filename:      'some_file.txt',
+        preferences:   {
+          'Content-Type' => 'text/plain',
+        },
+        created_by_id: 1,
+      )
+
+      within :active_ticket_article, article1 do
+        find('a[data-type=emailForward]').click
+      end
+
+      fill_in 'To', with: 'forward@example.org'
+      find('.articleNewEdit-body').send_keys('Forwarding with the attachment')
+      click '.js-submit'
+
+      await_empty_ajax_queue
+
+      # check if attachment was forwarded successfully
+      within :active_ticket_article, ticket.reload.articles.last do
+        within '.attachments--list' do
+          expect(page).to have_text('some_file.txt')
+        end
+      end
+    end
+  end
+
+  # https://github.com/zammad/zammad/issues/2671
+  describe 'Pending time field in ticket sidebar', authenticated_as: :customer do
+    let(:customer) { create(:customer) }
+    let(:ticket)   { create(:ticket, customer: customer, pending_time: 1.day.from_now, state: Ticket::State.lookup(name: 'pending reminder')) }
+
+    it 'not shown to customer' do
+      visit "ticket/zoom/#{ticket.id}"
+      await_empty_ajax_queue
+
+      within :active_content do
+        expect(page).to have_no_css('.controls[data-name=pending_time]')
+      end
+    end
+  end
+
+  describe 'Article ID URL / link' do
+    let(:ticket) { create(:ticket, group: Group.first) }
+    let!(:article) { create(:'ticket/article', ticket: ticket) }
+    let(:url) { "#{Setting.get('http_type')}://#{Setting.get('fqdn')}/#ticket/zoom/#{ticket.id}/#{article.id}" }
+
+    it 'shows Article direct link' do
+
+      ensure_websocket do
+        visit "ticket/zoom/#{ticket.id}"
+        await_empty_ajax_queue
+
+        within :active_ticket_article, article do
+          expect(page).to have_css(%(a[href="#{url}"]))
+        end
+      end
+    end
+
+    context 'when multiple Articles are present' do
+
+      let(:article_count) { 20 }
+      let(:article_at_the_top) { ticket.articles.first }
+      let(:article_in_the_middle) { ticket.articles[ article_count / 2 ] }
+      let(:article_at_the_bottom) { ticket.articles.last }
+
+      before do
+        article_count.times do
+          create(:'ticket/article', ticket: ticket, body: SecureRandom.uuid)
+        end
+      end
+
+      it 'scrolls to given Article ID' do
+        ensure_websocket do
+          visit "ticket/zoom/#{ticket.id}/#{article_in_the_middle.id}"
+          await_empty_ajax_queue
+          # workaround because browser scrolls in test initially to the bottom
+          # maybe because the articles are not present?!
+          refresh
+
+          # scroll to article in the middle of the page
+          within :active_content do
+            find("div#article-content-#{article_in_the_middle.id}").in_fixed_position(wait: 0.5)
+
+            expect(find("div#article-content-#{article_at_the_top.id}")).to be_obscured
+            expect(find("div#article-content-#{article_in_the_middle.id}")).not_to be_obscured
+            expect(find("div#article-content-#{article_at_the_bottom.id}")).to be_obscured
+          end
+
+          # scroll to article at the top of the page
+          visit "ticket/zoom/#{ticket.id}/#{article_at_the_top.id}"
+          await_empty_ajax_queue
+          within :active_content do
+            find("div#article-content-#{article_in_the_middle.id}").in_fixed_position(wait: 0.5)
+
+            expect(find("div#article-content-#{article_at_the_top.id}")).not_to be_obscured
+            expect(find("div#article-content-#{article_in_the_middle.id}")).to be_obscured
+            expect(find("div#article-content-#{article_at_the_bottom.id}")).to be_obscured
+          end
+
+          # scroll to article at the bottom of the page
+          visit "ticket/zoom/#{ticket.id}/#{article_at_the_bottom.id}"
+          await_empty_ajax_queue
+          within :active_content do
+            find("div#article-content-#{article_in_the_middle.id}").in_fixed_position(wait: 0.5)
+
+            expect(find("div#article-content-#{article_at_the_top.id}")).to be_obscured
+            expect(find("div#article-content-#{article_in_the_middle.id}")).to be_obscured
+            expect(find("div#article-content-#{article_at_the_bottom.id}")).not_to be_obscured
+          end
+        end
+      end
+    end
+
+    context 'when long articles are present' do
+      it 'will properly show the "See more" link if you switch between the ticket and the dashboard on new articles' do
+        ensure_websocket do
+          visit "ticket/zoom/#{ticket.id}"
+          await_empty_ajax_queue
+
+          visit 'dashboard'
+          expect(page).to have_css("a.js-dashboardMenuItem[data-key='Dashboard'].is-active", wait: 10)
+          article_id = create(:'ticket/article', ticket: ticket, body: "#{SecureRandom.uuid} #{"lorem ipsum\n" * 200}")
+          expect(page).to have_css('div.tasks a.is-modified', wait: 10)
+
+          visit "ticket/zoom/#{ticket.id}"
+          within :active_content do
+            expect(find("div#article-content-#{article_id.id}")).to have_text('See more')
+          end
+        end
+      end
+    end
+  end
+
+  describe 'Macros', authenticated_as: :authenticate do
+    let(:macro) { create :macro, perform: { 'article.note'=>{ 'body' => 'macro <b>body</b>', 'internal' => 'true', 'subject' => 'macro note' } } }
+    let!(:ticket) { create(:ticket, group: Group.find_by(name: 'Users')) }
+
+    def authenticate
+      macro
+      true
+    end
+
+    it 'does html macro by default' do
+      visit "ticket/zoom/#{ticket.id}"
+      find('.js-openDropdownMacro').click
+      all('.js-dropdownActionMacro').last.click
+      await_empty_ajax_queue
+
+      expect(ticket.reload.articles.last.body).to eq('macro <b>body</b>')
+      expect(ticket.reload.articles.last.content_type).to eq('text/html')
+    end
+  end
+
+  describe 'object manager attributes maxlength', authenticated_as: :authenticate, db_strategy: :reset do
+    let(:ticket) { create(:ticket, group: Group.find_by(name: 'Users')) }
+
+    def authenticate
+      ticket
+      create :object_manager_attribute_text, name: 'maxtest', display: 'maxtest', screens: attributes_for(:required_screen), data_option: {
+        'type'      => 'text',
+        'maxlength' => 3,
+        'null'      => true,
+        'translate' => false,
+        'default'   => '',
+        'options'   => {},
+        'relation'  => '',
+      }
+      ObjectManager::Attribute.migration_execute
+      true
+    end
+
+    it 'checks ticket zoom' do
+      visit "ticket/zoom/#{ticket.id}"
+      within(:active_content) do
+        fill_in 'maxtest', with: 'hellu'
+        expect(page.find_field('maxtest').value).to eq('hel')
       end
     end
   end

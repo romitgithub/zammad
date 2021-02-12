@@ -649,7 +649,7 @@ test("htmlCleanup", function() {
 
   source = "<div><font size=\"3\" color=\"red\">This is some text!</font><svg><use xlink:href=\"assets/images/icons.svg#icon-status\"></svg></div>"
   //should = "<div>This is some text!</div>"
-  should = "This is some text!"
+  should = "<font color=\"red\">This is some text!</font>"
   result = App.Utils.htmlCleanup($(source))
   equal(result.html(), should, source)
 
@@ -671,7 +671,7 @@ test("htmlCleanup", function() {
   equal(result.html().trim(), should, source)
 
   source = "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0 Transitional//EN\">\n<html>\n<head>\n  <meta http-equiv=\"content-type\" content=\"text/html; charset=utf-8\"/>\n  <title></title>\n  <meta name=\"generator\" content=\"LibreOffice 4.4.7.2 (MacOSX)\"/>\n  <style type=\"text/css\">\n    @page { margin: 0.79in }\n    p { margin-bottom: 0.1in; line-height: 120% }\n    a:link { so-language: zxx }\n  </style>\n</head>\n<body lang=\"en-US\" dir=\"ltr\">\n<p align=\"center\" style=\"margin-bottom: 0in; line-height: 100%\">1.\nGehe a<b>uf </b><b>https://www.pfe</b>rdiathek.ge</p>\n<p align=\"center\" style=\"margin-bottom: 0in; line-height: 100%\"><br/>\n\n</p>\n<p align=\"center\" style=\"margin-bottom: 0in; line-height: 100%\">2.\nMel<font color=\"#800000\">de Dich mit folgende</font> Zugangsdaten an:</p>\n<p align=\"center\" style=\"margin-bottom: 0in; line-height: 100%\">Benutzer:\nme@xxx.net</p>\n<p align=\"center\" style=\"margin-bottom: 0in; line-height: 100%\">Passwort:\nxxx.</p>\n</body>\n</html>"
-  should = "\n\n\n  \n  \n  \n  \n\n\n<p>1.\nGehe a<b>uf </b><b>https://www.pfe</b>rdiathek.ge</p>\n<p><br>\n\n</p>\n<p>2.\nMelde Dich mit folgende Zugangsdaten an:</p>\n<p>Benutzer:\nme@xxx.net</p>\n<p>Passwort:\nxxx.</p>\n\n"
+  should = "\n\n\n  \n  \n  \n  \n\n\n<p>1.\nGehe a<b>uf </b><b>https://www.pfe</b>rdiathek.ge</p>\n<p><br>\n\n</p>\n<p>2.\nMel<font color=\"#800000\">de Dich mit folgende</font> Zugangsdaten an:</p>\n<p>Benutzer:\nme@xxx.net</p>\n<p>Passwort:\nxxx.</p>\n\n"
   result = App.Utils.htmlCleanup(source)
   equal(result.html(), should, source)
 
@@ -1049,6 +1049,14 @@ test("identify signature by HTML", function() {
   var message = "<div>test 123 </div>"
   var should  = message
   var result  = App.Utils.signatureIdentifyByHtml(message)
+  equal(result, should)
+
+
+  // test if, according to jQuery, invalid HTML does not cause a a crash
+  // https://github.com/zammad/zammad/issues/3393
+  message = "<td></td><table></table><div>test 123 </div>"
+  should  = message
+  result  = App.Utils.signatureIdentifyByHtml(message)
   equal(result, should)
 
   // simple case 1
@@ -3386,3 +3394,20 @@ test('App.Utils.signatureIdentifyByHtmlHelper()', function() {
 
   equal(result, "&lt;script&gt;alert('fish2');&lt;/script&gt;<span class=\"js-signatureMarker\"></span><blockquote></blockquote>", 'signatureIdentifyByHtmlHelper does not reactivate alert')
 });
+
+test("#safeParseHtml", function() {
+  var unwrap = input => $('<div>').html(input)[0].innerHTML
+
+  var html = "<div>test 123 </div>"
+  var result  = App.Utils.safeParseHtml(html)
+  var should = html
+  equal(unwrap(result), html)
+
+
+  // test if, according to jQuery, invalid HTML does not cause a a crash
+  // https://github.com/zammad/zammad/issues/3393
+  html   = "<td></td><table></table><div>test 123 </div>"
+  should = "<table></table><div>test 123 </div>"
+  result = App.Utils.safeParseHtml(html)
+  equal(unwrap(result), should)
+})

@@ -2,6 +2,7 @@
 Rails.application.config.html_sanitizer_tags_remove_content = %w[
   style
   comment
+  meta
 ]
 
 # content of this tags will will be inserted html quoted
@@ -44,6 +45,7 @@ Rails.application.config.html_sanitizer_attributes_whitelist = {
   'ul'         => %w[type],
   'q'          => %w[cite],
   'span'       => %w[style],
+  'div'        => %w[style],
   'time'       => %w[datetime pubdate],
 }
 
@@ -55,6 +57,9 @@ Rails.application.config.html_sanitizer_css_properties_whitelist = {
     max-height min-height
   ],
   'span'  => %w[
+    color
+  ],
+  'div'   => %w[
     color
   ],
   'table' => %w[
@@ -104,11 +109,40 @@ Rails.application.config.html_sanitizer_css_properties_whitelist = {
 }
 
 Rails.application.config.html_sanitizer_css_values_backlist = {
+  'div'   => [
+    'color:white',
+    'color:black',
+    'color:#000',
+    'color:#000000',
+    'color:#fff',
+    'color:#ffffff',
+    'color:rgb(0,0,0)',
+  ],
+  'span'  => [
+    'color:white',
+    'color:black',
+    'color:#000',
+    'color:#000000',
+    'color:#fff',
+    'color:#ffffff',
+    'color:rgb(0,0,0)',
+  ],
   'table' => [
     'font-size:0',
     'font-size:0px',
     'font-size:0em',
     'font-size:0%',
+    'font-size:1px',
+    'font-size:1em',
+    'font-size:1%',
+    'font-size:2',
+    'font-size:2px',
+    'font-size:2em',
+    'font-size:2%',
+    'font-size:3',
+    'font-size:3px',
+    'font-size:3em',
+    'font-size:3%',
     'display:none',
     'visibility:hidden',
   ],
@@ -117,6 +151,17 @@ Rails.application.config.html_sanitizer_css_values_backlist = {
     'font-size:0px',
     'font-size:0em',
     'font-size:0%',
+    'font-size:1px',
+    'font-size:1em',
+    'font-size:1%',
+    'font-size:2',
+    'font-size:2px',
+    'font-size:2em',
+    'font-size:2%',
+    'font-size:3',
+    'font-size:3px',
+    'font-size:3em',
+    'font-size:3%',
     'display:none',
     'visibility:hidden',
   ],
@@ -125,6 +170,18 @@ Rails.application.config.html_sanitizer_css_values_backlist = {
     'font-size:0px',
     'font-size:0em',
     'font-size:0%',
+    'font-size:1',
+    'font-size:1px',
+    'font-size:1em',
+    'font-size:1%',
+    'font-size:2',
+    'font-size:2px',
+    'font-size:2em',
+    'font-size:2%',
+    'font-size:3',
+    'font-size:3px',
+    'font-size:3em',
+    'font-size:3%',
     'display:none',
     'visibility:hidden',
   ],
@@ -133,6 +190,17 @@ Rails.application.config.html_sanitizer_css_values_backlist = {
     'font-size:0px',
     'font-size:0em',
     'font-size:0%',
+    'font-size:1px',
+    'font-size:1em',
+    'font-size:1%',
+    'font-size:2',
+    'font-size:2px',
+    'font-size:2em',
+    'font-size:2%',
+    'font-size:3',
+    'font-size:3px',
+    'font-size:3em',
+    'font-size:3%',
     'display:none',
     'visibility:hidden',
   ],

@@ -27,6 +27,22 @@ RSpec.describe Ticket::Article, type: :model do
       end
     end
 
+    describe 'Setting of ticket_define_email_from' do
+      subject(:article) do
+        create(:ticket_article, sender_name: 'Agent', type_name: 'email')
+      end
+
+      context 'when AgentName' do
+        before do
+          Setting.set('ticket_define_email_from', 'AgentName')
+        end
+
+        it 'sets the from based on the setting' do
+          expect(article.reload.from).to eq("\"#{article.created_by.firstname} #{article.created_by.lastname}\" <#{article.ticket.group.email_address.email}>")
+        end
+      end
+    end
+
     describe 'Setting of ticket.create_article_{sender,type}' do
       let!(:ticket) { create(:ticket) }
 
@@ -164,7 +180,8 @@ RSpec.describe Ticket::Article, type: :model do
             <div>
             LINK
             <a href="http://lalal.de" rel="nofollow noreferrer noopener" target="_blank" title="http://lalal.de">aa</a>
-            ABC</div>
+            ABC
+            </div>
           SANITIZED
         end
       end

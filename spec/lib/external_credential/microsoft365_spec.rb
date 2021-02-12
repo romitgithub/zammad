@@ -132,8 +132,8 @@ RSpec.describe ExternalCredential::Microsoft365 do
         let(:response_status) { 404 }
         let(:response_payload) do
           {
-            "error":             'invalid_client',
-            "error_description": 'The OAuth client was not found.'
+            error:             'invalid_client',
+            error_description: 'The OAuth client was not found.'
           }
         end
         let(:exception_message) { 'Request failed! ERROR: invalid_client (The OAuth client was not found.)' }
@@ -202,7 +202,7 @@ RSpec.describe ExternalCredential::Microsoft365 do
 
         it 'does not refresh' do
           expect do
-            channel.refresh_xoaut2!
+            channel.refresh_xoauth2!
           end.not_to change { channel.options['auth']['created_at'] }
         end
       end
@@ -226,7 +226,7 @@ RSpec.describe ExternalCredential::Microsoft365 do
 
         it 'refreshes token' do
           expect do
-            channel.refresh_xoaut2!
+            channel.refresh_xoauth2!
           end.to change { channel.options['auth'] }.to a_hash_including(
             'created_at'   => Time.zone.now,
             'access_token' => refreshed_access_token,
@@ -247,7 +247,7 @@ RSpec.describe ExternalCredential::Microsoft365 do
       shared_examples 'failed attempt' do
         it 'raises an exception' do
           expect do
-            channel.refresh_xoaut2!
+            channel.refresh_xoauth2!
           end.to raise_error(RuntimeError, exception_message)
         end
       end
@@ -256,8 +256,8 @@ RSpec.describe ExternalCredential::Microsoft365 do
         let(:response_status) { 400 }
         let(:response_payload) do
           {
-            "error":             'invalid_client',
-            "error_description": 'The OAuth client was not found.'
+            error:             'invalid_client',
+            error_description: 'The OAuth client was not found.'
           }
         end
         let(:exception_message) { /The OAuth client was not found/ }

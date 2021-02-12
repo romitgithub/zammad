@@ -18,6 +18,7 @@
         </div>
         <div class="stat-detail"><%- channel.overal_percentage %>%</div>
       </div>
+      <div class="stat-label"></div>
       <% end %>
     </div>
   </div>

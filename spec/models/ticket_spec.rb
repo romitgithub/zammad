@@ -498,6 +498,59 @@ RSpec.describe Ticket, type: :model do
           include_examples 'verify log visibility status'
         end
       end
+
+      context 'with a "notification.webhook" trigger', performs_jobs: true do
+        let(:trigger) do
+          create(:trigger,
+                 perform: {
+                   'notification.webhook' => {
+                     endpoint: 'http://api.example.com/webhook',
+                     token:    '53CR3t'
+                   }
+                 })
+        end
+
+        it 'schedules the webhooks notification job' do
+          expect { ticket.perform_changes(trigger, 'trigger', {}, 1) }.to have_enqueued_job(TriggerWebhookJob).with(trigger, ticket, nil)
+        end
+      end
+    end
+
+    describe '#trigger_based_notification?' do
+      let(:ticket) { create(:ticket) }
+
+      context 'with a normal user' do
+        let(:customer) { create(:customer) }
+
+        it 'send trigger base notification' do
+          expect(ticket.send(:trigger_based_notification?, customer)).to eq(true)
+        end
+      end
+
+      context 'with a permanent failed user' do
+
+        let(:failed_date) { 1.second.ago }
+
+        let(:customer) do
+          user = create(:customer)
+          user.preferences.merge!(mail_delivery_failed: true, mail_delivery_failed_data: failed_date)
+          user.save!
+          user
+        end
+
+        it 'send no trigger base notification' do
+          expect(ticket.send(:trigger_based_notification?, customer)).to eq(false)
+        end
+
+        context 'with failed date 61 days ago' do
+
+          let(:failed_date) { 61.days.ago }
+
+          it 'send trigger base notification' do
+            expect(ticket.send(:trigger_based_notification?, customer)).to eq(true)
+          end
+        end
+      end
     end
 
     describe '#subject_build' do
@@ -741,7 +794,7 @@ RSpec.describe Ticket, type: :model do
     end
 
     describe '#pending_time' do
-      subject(:ticket) { create(:ticket, pending_time: Time.zone.now + 2.days) }
+      subject(:ticket) { create(:ticket, pending_time: 2.days.from_now) }
 
       context 'when #state is updated to any non-"pending" value' do
         it 'is reset to nil' do
@@ -826,6 +879,76 @@ RSpec.describe Ticket, type: :model do
         it 'is set to nil' do
           expect { ticket.save! }
             .to change { ticket.reload.escalation_at }.to(nil)
+        end
+      end
+
+      context 'when within last (relative)' do
+        let(:first_response_time) { 5 }
+        let(:sla) { create(:sla, calendar: calendar, first_response_time: first_response_time) }
+        let(:within_condition) do
+          { 'ticket.escalation_at'=>{ 'operator' => 'within last (relative)', 'value' => '30', 'range' => 'minute' } }
+        end
+
+        before do
+          sla
+
+          travel_to '2020-11-05 11:37:00'
+
+          ticket = create(:ticket)
+          create(:ticket_article, :inbound_email, ticket: ticket)
+
+          travel_to '2020-11-05 11:50:00'
+        end
+
+        context 'when in range' do
+          it 'does find the ticket' do
+            count, _tickets = described_class.selectors(within_condition, limit: 2_000, execution_time: true)
+            expect(count).to eq(1)
+          end
+        end
+
+        context 'when out of range' do
+          let(:first_response_time) { 500 }
+
+          it 'does not find the ticket' do
+            count, _tickets = described_class.selectors(within_condition, limit: 2_000, execution_time: true)
+            expect(count).to eq(0)
+          end
+        end
+      end
+
+      context 'when within next (relative)' do
+        let(:first_response_time) { 5 }
+        let(:sla) { create(:sla, calendar: calendar, first_response_time: first_response_time) }
+        let(:within_condition) do
+          { 'ticket.escalation_at'=>{ 'operator' => 'within next (relative)', 'value' => '30', 'range' => 'minute' } }
+        end
+
+        before do
+          sla
+
+          travel_to '2020-11-05 11:50:00'
+
+          ticket = create(:ticket)
+          create(:ticket_article, :inbound_email, ticket: ticket)
+
+          travel_to '2020-11-05 11:37:00'
+        end
+
+        context 'when in range' do
+          it 'does find the ticket' do
+            count, _tickets = described_class.selectors(within_condition, limit: 2_000, execution_time: true)
+            expect(count).to eq(1)
+          end
+        end
+
+        context 'when out of range' do
+          let(:first_response_time) { 500 }
+
+          it 'does not find the ticket' do
+            count, _tickets = described_class.selectors(within_condition, limit: 2_000, execution_time: true)
+            expect(count).to eq(0)
+          end
         end
       end
     end

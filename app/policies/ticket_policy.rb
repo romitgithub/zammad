@@ -5,6 +5,7 @@ class TicketPolicy < ApplicationPolicy
   end
 
   def create?
+    ensure_group!
     access?('create')
   end
 
@@ -26,12 +27,22 @@ class TicketPolicy < ApplicationPolicy
     access?('full')
   end
 
+  def ensure_group!
+    return if record.group_id
+
+    raise Exceptions::UnprocessableEntity, "Group can't be blank"
+  end
+
   def follow_up?
     return true if user.permissions?('ticket.agent') # agents can always reopen tickets, regardless of group configuration
     return true if record.group.follow_up_possible != 'new_ticket' # check if the setting for follow_up_possible is disabled
     return true if record.state.name != 'closed' # check if the ticket state is already closed
 
     raise Exceptions::UnprocessableEntity, 'Cannot follow-up on a closed ticket. Please create a new ticket.'
+  end
+
+  def agent_read_access?
+    agent_access?('read')
   end
 
   private

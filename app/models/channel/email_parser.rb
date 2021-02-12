@@ -78,6 +78,8 @@ class Channel::EmailParser
     msg = Mail::Utilities.binary_unsafe_to_crlf(msg)
     mail = Mail.new(msg)
 
+    message_ensure_message_id(msg, mail)
+
     force_parts_encoding_if_needed(mail)
 
     headers = message_header_hash(mail)
@@ -337,7 +339,7 @@ returns
     end
     return if to.blank?
 
-    email = EmailAddress.find_by(email: to)
+    email = EmailAddress.find_by(email: to.downcase)
     return if email&.channel.blank?
 
     email.channel&.group
@@ -526,14 +528,15 @@ process unprocessable_mails (tmp/unprocessable_mail/*.eml) again
 
   # https://github.com/zammad/zammad/issues/2922
   def force_parts_encoding_if_needed(mail)
-    mail.parts.each { |elem| force_single_part_encoding_if_needed(elem) }
+    # enforce encoding on both multipart parts and main body
+    ([mail] + mail.parts).each { |elem| force_single_part_encoding_if_needed(elem) }
   end
 
   # https://github.com/zammad/zammad/issues/2922
   def force_single_part_encoding_if_needed(part)
-    return if part.charset != 'iso-2022-jp'
+    return if part.charset&.downcase != 'iso-2022-jp'
 
-    part.body = part.body.encoded.unpack1('M').force_encoding('ISO-2022-JP').encode('UTF-8')
+    part.body = force_japanese_encoding part.body.encoded.unpack1('M')
   end
 
   ISO2022JP_REGEXP = /=\?ISO-2022-JP\?B\?(.+?)\?=/.freeze
@@ -541,8 +544,19 @@ process unprocessable_mails (tmp/unprocessable_mail/*.eml) again
   # https://github.com/zammad/zammad/issues/3115
   def header_field_unpack_japanese(field)
     field.value.gsub ISO2022JP_REGEXP do
-      Base64.decode64($1).force_encoding('SJIS').encode('UTF-8')
+      force_japanese_encoding Base64.decode64($1)
     end
+  end
+
+  # generate Message ID on the fly if it was missing
+  # yes, Mail gem generates one in some cases
+  # but it is 100% random so duplicate messages would not be detected
+  def message_ensure_message_id(raw, parsed)
+    field = parsed.header.fields.find { |elem| elem.name == 'Message-ID' }
+
+    return true if field&.unparsed_value.present?
+
+    parsed.message_id = generate_message_id(raw, parsed.from)
   end
 
   def message_header_hash(mail)
@@ -700,11 +714,7 @@ process unprocessable_mails (tmp/unprocessable_mail/*.eml) again
     rescue
       begin
         case file.header[:content_disposition].to_s
-        when /(filename|name)(\*{0,1})="(.+?)"/i
-          filename = $3
-        when /(filename|name)(\*{0,1})='(.+?)'/i
-          filename = $3
-        when /(filename|name)(\*{0,1})=(.+?);/i
+        when /(filename|name)(\*{0,1})="(.+?)"/i, /(filename|name)(\*{0,1})='(.+?)'/i, /(filename|name)(\*{0,1})=(.+?);/i
           filename = $3
         end
       rescue
@@ -714,11 +724,7 @@ process unprocessable_mails (tmp/unprocessable_mail/*.eml) again
 
     begin
       case file.header[:content_disposition].to_s
-      when /(filename|name)(\*{0,1})="(.+?)"/i
-        filename = $3
-      when /(filename|name)(\*{0,1})='(.+?)'/i
-        filename = $3
-      when /(filename|name)(\*{0,1})=(.+?);/i
+      when /(filename|name)(\*{0,1})="(.+?)"/i, /(filename|name)(\*{0,1})='(.+?)'/i, /(filename|name)(\*{0,1})=(.+?);/i
         filename = $3
       end
     rescue
@@ -728,11 +734,7 @@ process unprocessable_mails (tmp/unprocessable_mail/*.eml) again
     # as fallback, use raw values
     if filename.blank?
       case headers_store['Content-Disposition'].to_s
-      when /(filename|name)(\*{0,1})="(.+?)"/i
-        filename = $3
-      when /(filename|name)(\*{0,1})='(.+?)'/i
-        filename = $3
-      when /(filename|name)(\*{0,1})=(.+?);/i
+      when /(filename|name)(\*{0,1})="(.+?)"/i, /(filename|name)(\*{0,1})='(.+?)'/i, /(filename|name)(\*{0,1})=(.+?);/i
         filename = $3
       end
     end
@@ -920,6 +922,39 @@ process unprocessable_mails (tmp/unprocessable_mail/*.eml) again
       References:    parsed_incoming_mail[:message_id],
       'In-Reply-To': parsed_incoming_mail[:message_id],
     )
+  end
+
+  def guess_email_fqdn(from)
+    Mail::Address.new(from).domain.strip
+  rescue
+    nil
+  end
+
+  def generate_message_id(raw_message, from)
+    fqdn = guess_email_fqdn(from) || 'zammad_generated'
+
+    "<gen-#{Digest::MD5.hexdigest(raw_message)}@#{fqdn}>"
+  end
+
+  # https://github.com/zammad/zammad/issues/3096
+  # specific email needs to be forced to ISO-2022-JP
+  # but that breaks other emails that can be forced to SJIS only
+  # thus force to ISO-2022-JP but fallback to SJIS
+  #
+  # https://github.com/zammad/zammad/issues/3368
+  # some characters are not included in the official ISO-2022-JP
+  # ISO-2022-JP-KDDI superset provides support for more characters
+  def force_japanese_encoding(input)
+    %w[ISO-2022-JP ISO-2022-JP-KDDI SJIS]
+      .lazy
+      .map { |encoding| try_encoding(input, encoding) }
+      .detect(&:present?)
+  end
+
+  def try_encoding(input, encoding)
+    input.force_encoding(encoding).encode('UTF-8')
+  rescue
+    nil
   end
 end
 

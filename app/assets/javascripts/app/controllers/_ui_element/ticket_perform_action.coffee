@@ -23,6 +23,7 @@ class App.UiElement.ticket_perform_action
         if groupKey is 'notification'
           elements["#{groupKey}.email"] = { name: 'email', display: 'Email' }
           elements["#{groupKey}.sms"] = { name: 'sms', display: 'SMS' }
+          elements["#{groupKey}.webhook"] = { name: 'webhook', display: 'Webhook' }
         else if groupKey is 'article'
           elements["#{groupKey}.note"] = { name: 'note', display: 'Note' }
       else
@@ -274,12 +275,14 @@ class App.UiElement.ticket_perform_action
       options =
         'current_user.id': App.i18n.translateInline('current user')
         'specific': App.i18n.translateInline('specific user')
-        #'set': App.i18n.translateInline('set')
+
+      if attributeSelected.null is true
+        options['not_set'] = App.i18n.translateInline('unassign user')
+
     else if preCondition is 'org'
       options =
         'current_user.organization_id': App.i18n.translateInline('current user organization')
         'specific': App.i18n.translateInline('specific organization')
-        #'set': App.i18n.translateInline('set')
 
     for key, value of options
       selected = ''
@@ -332,7 +335,15 @@ class App.UiElement.ticket_perform_action
       'relative'
     ]
 
-    if _.include(relative_operators, meta.operator)
+    upcoming_operator = meta.operator
+
+    if !_.include(config.operator, upcoming_operator)
+      if Array.isArray(config.operator)
+        upcoming_operator = config.operator[0]
+      else
+        upcoming_operator = null
+
+    if _.include(relative_operators, upcoming_operator)
       config['name'] = "#{attribute.name}::#{groupAndAttribute}"
       if attribute.value && attribute.value[groupAndAttribute]
         config['value'] = _.clone(attribute.value[groupAndAttribute])
@@ -368,7 +379,7 @@ class App.UiElement.ticket_perform_action
       for recipient in meta.recipient
         if key is recipient
           selected = true
-      columnSelectOptions.push({ value: key, name: App.i18n.translateInline(value), selected: selected })
+      columnSelectOptions.push({ value: key, name: App.i18n.translatePlain(value), selected: selected })
 
     columnSelectRecipientUserOptions = []
     for user in App.User.all()
@@ -395,12 +406,17 @@ class App.UiElement.ticket_perform_action
 
     selectionRecipient = columnSelectRecipient.element()
 
-    notificationElement = $( App.view('generic/ticket_perform_action/notification')(
+    elementTemplate = 'notification'
+    if notificationType is 'webhook'
+      elementTemplate =  'webhook'
+
+    notificationElement = $( App.view("generic/ticket_perform_action/#{elementTemplate}")(
       attribute: attribute
       name: name
       notificationType: notificationType
       meta: meta || {}
     ))
+
     notificationElement.find('.js-recipient select').replaceWith(selectionRecipient)
 
     visibilitySelection = App.UiElement.select.render(
@@ -478,7 +494,6 @@ class App.UiElement.ticket_perform_action
     elementRow.find('.js-setArticle').empty()
 
     name = "#{attribute.name}::article.#{articleType}"
-    console.log('meta', meta)
     selection = App.UiElement.select.render(
       name: "#{name}::internal"
       multiple: false

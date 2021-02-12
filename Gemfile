@@ -2,7 +2,7 @@ source 'https://rubygems.org'
 
 # core - base
 ruby '2.6.6'
-gem 'rails', '5.2.4.4'
+gem 'rails', '5.2.4.5'
 
 # core - rails additions
 gem 'activerecord-import'
@@ -185,7 +185,7 @@ group :development, :test do
   gem 'rubocop'
   gem 'rubocop-performance'
   gem 'rubocop-rails'
-  gem 'rubocop-rspec', '2.0.0.pre' # see: https://github.com/rubocop-hq/rubocop-rspec/issues/1051
+  gem 'rubocop-rspec'
 
   # changelog generation
   gem 'github_changelog_generator'

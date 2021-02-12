@@ -274,12 +274,12 @@ do(window) ->
         'Send': 'Envoyer'
         'Chat closed by %s': 'Chat fermé par %s'
         'Compose your message...': 'Composez votre message...'
-        'All colleagues are busy.': 'Tous les collègues sont actuellement occupés.'
-        'You are on waiting list position <strong>%s</strong>.': 'Vous êtes actuellement en <strong>%s</strong> position dans la file d\'attente.'
+        'All colleagues are busy.': 'Tous les collaborateurs sont occupés actuellement.'
+        'You are on waiting list position <strong>%s</strong>.': 'Vous êtes actuellement en position <strong>%s</strong> dans la file d\'attente.'
         'Start new conversation': 'Démarrer une nouvelle conversation'
-        'Since you didn\'t respond in the last %s minutes your conversation with <strong>%s</strong> got closed.': 'Si vous ne répondez pas dans les <strong>%s</strong> minutes, votre conversation avec %s va être fermée.'
+        'Since you didn\'t respond in the last %s minutes your conversation with <strong>%s</strong> got closed.': 'Si vous ne répondez pas dans les <strong>%s</strong> minutes, votre conversation avec %s sera fermée.'
         'Since you didn\'t respond in the last %s minutes your conversation got closed.': 'Si vous ne répondez pas dans les %s minutes, votre conversation va être fermée.'
-        'We are sorry, it takes longer as expected to get an empty slot. Please try again later or send us an email. Thank you!': 'Nous sommes désolés, il faut plus de temps que prévu pour obtenir un emplacement vide. Veuillez réessayer ultérieurement ou nous envoyer un courriel. Je vous remercie!'
+        'We are sorry, it takes longer as expected to get an empty slot. Please try again later or send us an email. Thank you!': 'Nous sommes désolés, il faut plus de temps que prévu pour obtenir un emplacement vide. Veuillez réessayer ultérieurement ou nous envoyer un courriel. Nous vous remercions!'
       'he':
         '<strong>Chat</strong> with us!': '<strong>שוחח</strong>איתנו!'
         'Scroll down to see new messages': 'גלול מטה כדי לראות הודעות חדשות'
@@ -598,10 +598,10 @@ do(window) ->
 
     renderBase: ->
       @el.remove() if @el
-      @options.target.innerHTML += @view('chat')(
+      @options.target.insertAdjacentHTML('beforeend', @view('chat')(
         title: @options.title,
         scrollHint: @options.scrollHint
-      )
+      ))
       @el = @options.target.querySelector('.zammad-chat')
       @input = @el.querySelector('.zammad-chat-input')
       @body = @el.querySelector('.zammad-chat-body')
@@ -931,7 +931,7 @@ do(window) ->
     onInput: =>
       # remove unread-state from messages
       for message in @el.querySelectorAll('.zammad-chat-message--unread')
-        node.classList.remove 'zammad-chat-message--unread'
+        message.classList.remove 'zammad-chat-message--unread'
 
       sessionStorage.setItem 'unfinished_message', @input.innerHTML
 

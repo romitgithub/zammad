@@ -209,9 +209,9 @@ Setting.create_or_update(
         name:    'pretty_date_format',
         tag:     'select',
         options: {
-          'relative':  'relative - e. g. "2 hours ago" or "2 days and 15 minutes ago"',
-          'absolute':  'absolute - e. g. "Monday 09:30" or "Tuesday 23. Feb 14:20"',
-          'timestamp': 'timestamp - e. g. "2018-08-30 14:30"',
+          relative:  'relative - e. g. "2 hours ago" or "2 days and 15 minutes ago"',
+          absolute:  'absolute - e. g. "Monday 09:30" or "Tuesday 23. Feb 14:20"',
+          timestamp: 'timestamp - e. g. "2018-08-30 14:30"',
         },
       },
     ],
@@ -2524,6 +2524,7 @@ Setting.create_if_not_exists(
         options: {
           SystemAddressName:          'System Address Display Name',
           AgentNameSystemAddressName: 'Agent Name + FromSeparator + System Address Display Name',
+          AgentName:                  'Agent Name',
         },
       },
     ],
@@ -2976,15 +2977,6 @@ Setting.create_if_not_exists(
   area:        'SearchIndex::Elasticsearch',
   description: 'Define pipeline name for Elasticsearch.',
   state:       '',
-  preferences: { online_service_disable: true },
-  frontend:    false
-)
-Setting.create_if_not_exists(
-  title:       'Elasticsearch Multi Index',
-  name:        'es_multi_index',
-  area:        'SearchIndex::Elasticsearch',
-  description: 'Define if Elasticsearch is using multiple indexes.',
-  state:       false,
   preferences: { online_service_disable: true },
   frontend:    false
 )

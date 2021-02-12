@@ -8,7 +8,12 @@ class App.UiElement.object_manager_attribute extends App.UiElement.ApplicationUi
       params.data_option = params.data_option_new
 
     if attribute.value == 'select' && params.data_option? && params.data_option.options?
-      sorted = _.map params.data_option.options, (value, key) -> [key.toString(), value.toString()]
+      sorted = _.map(
+        params.data_option.options, (value, key) ->
+          key = '' if !key || !key.toString
+          value = '' if !value || !value.toString
+          [key.toString(), value.toString()]
+      )
       params.data_option.sorted = sorted.sort( (a, b) -> a[1].localeCompare(b[1]) )
 
     item = $(App.view('object_manager/attribute')(attribute: attribute))
@@ -362,6 +367,20 @@ class App.UiElement.object_manager_attribute extends App.UiElement.ApplicationUi
       for subChild in child.children
         @buildRow(element, subChild, level + 1)
 
+  @findParent: (element, level, mode) ->
+    parent = $(element).closest('tr')
+    parent.nextAll().each(->
+      if parseInt($(@).find('.js-key').attr('level')) > level && mode is 'first'
+        parent = $(@)
+        return true
+      if parseInt($(@).find('.js-key').attr('level')) >= level && mode is 'last'
+        parent = $(@)
+        return true
+      return false
+    )
+
+    return parent
+
   @tree_select: (item, localParams, params, attribute) ->
     params.data_option ||= {}
     params.data_option.options ||= []
@@ -374,16 +393,16 @@ class App.UiElement.object_manager_attribute extends App.UiElement.ApplicationUi
     item.on('click', '.js-addRow', (e) =>
       e.stopPropagation()
       e.preventDefault()
-      addRow = $(e.currentTarget).closest('tr')
-      level  = parseInt(addRow.find('.js-key').attr('level'))
+      level  = parseInt($(e.currentTarget).closest('tr').find('.js-key').attr('level'))
+      addRow = @findParent(e.currentTarget, level, 'first')
       @buildRow(item, {}, level, addRow)
     )
 
     item.on('click', '.js-addChild', (e) =>
       e.stopPropagation()
       e.preventDefault()
-      addRow = $(e.currentTarget).closest('tr')
-      level  = parseInt(addRow.find('.js-key').attr('level')) + 1
+      level  = parseInt($(e.currentTarget).closest('tr').find('.js-key').attr('level')) + 1
+      addRow = @findParent(e.currentTarget, level, 'last')
       @buildRow(item, {}, level, addRow)
     )
 

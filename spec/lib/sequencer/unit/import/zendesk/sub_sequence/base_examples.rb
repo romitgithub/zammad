@@ -26,7 +26,8 @@ RSpec.shared_examples 'Sequencer::Unit::Import::Zendesk::SubSequence::Base' do
 
     let(:collection_name) { described_class.name.demodulize.snakecase.to_sym }
     let(:client_collection) { double('ZendeskAPI::Collection') }
-    let(:api_error) { ZendeskAPI::Error::NetworkError.new('Mock err msg', response_obj) }
+    let(:api_error_message) { 'Mock err msg' }
+    let(:api_error) { ZendeskAPI::Error::NetworkError.new(api_error_message, response_obj) }
 
     let(:response_obj) do
       # stubbed methods required for ZendeskAPI::Error::ClientError#to_s
@@ -62,7 +63,11 @@ RSpec.shared_examples 'Sequencer::Unit::Import::Zendesk::SubSequence::Base' do
           before { allow(response_obj).to receive(:status).and_return(403) }
 
           it 'does not rescue the resulting exception' do
-            expect { process(params) }.to raise_error(api_error)
+            expect do
+              process(params) do |unit|
+                allow(unit).to receive(:sleep) # stub out this method to speed up retry cycle
+              end
+            end.to raise_error(api_error)
           end
         end
       end
@@ -79,6 +84,18 @@ RSpec.shared_examples 'Sequencer::Unit::Import::Zendesk::SubSequence::Base' do
         expect(client_collection)
           .to receive(:all!).exactly(11).times
 
+        expect do
+          process(params) do |unit|
+            expect(unit).to receive(:sleep).with(10).exactly(10).times
+          end
+        end.to raise_error(api_error)
+      end
+    end
+
+    context 'when execution timeout occurs' do
+      let(:api_error_message) { "execution expired -- get https://example.zendesk.com/api/v2/#{collection_name}" }
+
+      it 'retries ten times, in 10s intervals' do
         expect do
           process(params) do |unit|
             expect(unit).to receive(:sleep).with(10).exactly(10).times

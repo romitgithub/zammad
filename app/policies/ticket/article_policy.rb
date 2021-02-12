@@ -29,7 +29,7 @@ class Ticket::ArticlePolicy < ApplicationPolicy
       return not_authorized('you can only delete your own notes')
     end
 
-    if record.type.communication?
+    if record.type.communication? && !record.internal?
       return not_authorized('communication articles cannot be deleted')
     end
 
@@ -55,9 +55,9 @@ class Ticket::ArticlePolicy < ApplicationPolicy
   end
 
   def access?(query)
-    return false if record.internal == true && !user.permissions?('ticket.agent')
-
     ticket = Ticket.lookup(id: record.ticket_id)
+    return false if record.internal == true && !TicketPolicy.new(user, ticket).agent_read_access?
+
     Pundit.authorize(user, ticket, query)
   end
 end

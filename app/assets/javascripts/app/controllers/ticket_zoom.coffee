@@ -19,7 +19,7 @@ class App.TicketZoom extends App.Controller
     @authenticateCheckRedirect()
 
     @formMeta     = undefined
-    @ticket_id    = params.ticket_id
+    @ticket_id    = parseInt(params.ticket_id)
     @article_id   = params.article_id
     @sidebarState = {}
 
@@ -43,7 +43,7 @@ class App.TicketZoom extends App.Controller
     @interval(update, 1800000, 'pull_check')
 
     # fetch new data if triggered
-    @bind('Ticket:update Ticket:touch', (data) =>
+    @controllerBind('Ticket:update Ticket:touch', (data) =>
 
       # check if current ticket has changed
       return if data.id.toString() isnt @ticket_id.toString()
@@ -54,7 +54,7 @@ class App.TicketZoom extends App.Controller
     )
 
     # after a new websocket connection, check if ticket has changed
-    @bind('spool:sent', =>
+    @controllerBind('spool:sent', =>
       if @initSpoolSent
         @fetch(true)
         return
@@ -62,7 +62,7 @@ class App.TicketZoom extends App.Controller
     )
 
     # listen to rerender sidebars
-    @bind('ui::ticket::sidebarRerender', (data) =>
+    @controllerBind('ui::ticket::sidebarRerender', (data) =>
       return if data.taskKey isnt @taskKey
       return if !@sidebarWidget
       @sidebarWidget.render(@formCurrent())
@@ -115,8 +115,8 @@ class App.TicketZoom extends App.Controller
           return
 
         # show error message
-        if status is 401 || statusText is 'Unauthorized'
-          @taskHead      = '» ' + App.i18n.translateInline('Unauthorized') + ' «'
+        if status is 403 || statusText is 'Not authorized'
+          @taskHead      = '» ' + App.i18n.translateInline('Not authorized') + ' «'
           @taskIconClass = 'diagonal-cross'
           @renderScreenUnauthorized(objectName: 'Ticket')
         else if status is 404 || statusText is 'Not Found'
@@ -254,6 +254,11 @@ class App.TicketZoom extends App.Controller
     return if !@attributeBar
     @attributeBar.start()
 
+    if @renderDone && params.overview_id? && @overview_id != params.overview_id
+      @overview_id = params.overview_id
+
+      @renderOverviewNavigator(@el)
+
   # scroll to article if given
   scrollToPosition: (position, delay, article_id) =>
     scrollToDelay = =>
@@ -266,6 +271,7 @@ class App.TicketZoom extends App.Controller
     @delay(scrollToDelay, delay, 'scrollToPosition')
 
   pagePosition: (params = {}) =>
+    return if @el.is(':hidden')
 
     # remember for later
     return if params.type is 'init' && !@shown
@@ -277,24 +283,24 @@ class App.TicketZoom extends App.Controller
       article_id = @pagePositionData
       @pagePositionData = undefined
 
-    # trigger shown to article
-    if !@shown
-      @shown = true
-      App.Event.trigger('ui::ticket::shown', { ticket_id: @ticket_id })
-      @scrollToPosition('bottom', 50, article_id)
-      return
-
     # scroll to article if given
     if article_id && article_id isnt @last_article_id
-      @last_article_id = article_id
       @scrollToPosition('article', 300, article_id)
-      return
 
     # scroll to end if new article has been added
-    if !@last_ticket_article_ids || !_.isEqual(_.sortBy(@last_ticket_article_ids), _.sortBy(@ticket_article_ids))
-      @last_ticket_article_ids = @ticket_article_ids
+    else if !@last_ticket_article_ids || !_.isEqual(_.sortBy(@last_ticket_article_ids), _.sortBy(@ticket_article_ids))
+      App.Event.trigger('ui::ticket::shown', { ticket_id: @ticket_id })
       @scrollToPosition('bottom', 100, article_id)
-      return
+
+    # trigger shown to article
+    else if !@shown
+      App.Event.trigger('ui::ticket::shown', { ticket_id: @ticket_id })
+      @scrollToPosition('bottom', 50, article_id)
+
+    # save page position state
+    @shown                   = true
+    @last_ticket_article_ids = @ticket_article_ids
+    @last_article_id         = article_id
 
   setPosition: (position) =>
     @$('.main').scrollTop(position)
@@ -429,11 +435,7 @@ class App.TicketZoom extends App.Controller
         dir:            App.i18n.dir()
       )
 
-      new App.TicketZoomOverviewNavigator(
-        el:          elLocal.find('.js-overviewNavigatorContainer')
-        ticket_id:   @ticket_id
-        overview_id: @overview_id
-      )
+      @renderOverviewNavigator(elLocal)
 
       new App.TicketZoomTitle(
         object_id:   @ticket_id
@@ -1034,6 +1036,13 @@ class App.TicketZoom extends App.Controller
       ticket:  {}
       article: {}
     App.TaskManager.update(@taskKey, { 'state': @localTaskData })
+
+  renderOverviewNavigator: (parentEl) ->
+    new App.TicketZoomOverviewNavigator(
+      el:          parentEl.find('.js-overviewNavigatorContainer')
+      ticket_id:   @ticket_id
+      overview_id: @overview_id
+    )
 
 class TicketZoomRouter extends App.ControllerPermanent
   requiredPermission: ['ticket.agent', 'ticket.customer']
